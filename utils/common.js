@@ -1,9 +1,10 @@
 module.exports = {
-    refuse(msg) {
+    refuse(msg, type = 'error') {
         return {
             code: 0,
             data: null,
-            message: msg
+            message: msg,
+            type
         }
     },
     accept(data, msg = '') {

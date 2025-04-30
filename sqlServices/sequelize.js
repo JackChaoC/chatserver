@@ -51,6 +51,8 @@ const Users = sequelize.define('Users', {
         defaultValue: () => Date.now() // 使用JS时间戳
     },
 }, {
+    timestamps: true,
+    updatedAt: false,
     tableName: 'USERS',
     comment: '用户信息表',
 });
@@ -61,10 +63,10 @@ const Relationship = sequelize.define('Relationship', {
         primaryKey: true,
         autoIncrement: true,
     },
-    user_id_former: {
+    user1_id: {
         type: DataTypes.INTEGER,
     },
-    user_id_later: {
+    user2_id: {
         type: DataTypes.INTEGER,
     },
     createdAt: {
@@ -72,6 +74,8 @@ const Relationship = sequelize.define('Relationship', {
         defaultValue: () => Date.now() // 使用JS时间戳
     },
 }, {
+    timestamps: true,
+    updatedAt: false,
     indexes: [
         {
             unique: true,
@@ -312,13 +316,14 @@ Notification.belongsTo(Users, { foreignKey: 'sender_id' })
 Users.hasMany(Notification, { foreignKey: 'sender_id' })
 Notification.belongsTo(Users, { foreignKey: 'receiver_id' })
 Users.hasMany(Notification, { foreignKey: 'receiver_id' })
+Conversation.belongsTo(Message, { foreignKey: 'conversation_lastmessageid', onDelete: 'SET NULL', as: 'last_message' })
 
 //清除所有外键
 async function dropAllForeignKeys() {
-    const queryInterface = sequelize.getQueryInterface();
+
 
     // 查询所有外键
-    const [results] = await queryInterface.sequelize.query(`
+    const [results] = await sequelize.query(`
         SELECT TABLE_NAME, CONSTRAINT_NAME 
         FROM information_schema.TABLE_CONSTRAINTS 
         WHERE CONSTRAINT_TYPE = 'FOREIGN KEY' 
@@ -330,16 +335,16 @@ async function dropAllForeignKeys() {
     for (const row of results) {
         const { TABLE_NAME, CONSTRAINT_NAME } = row;
         console.log(`删除外键: ${CONSTRAINT_NAME} 在表: ${TABLE_NAME}`);
-        await queryInterface.sequelize.query(`ALTER TABLE \`${TABLE_NAME}\` DROP FOREIGN KEY \`${CONSTRAINT_NAME}\`;`);
+        await sequelize.query(`ALTER TABLE \`${TABLE_NAME}\` DROP FOREIGN KEY \`${CONSTRAINT_NAME}\`;`);
     }
 }
 //清除所有unique键
 
 async function dropAllUniqueKeys() {
-    const queryInterface = sequelize.getQueryInterface();
+
 
     // 查询所有唯一索引
-    const [results] = await queryInterface.sequelize.query(`
+    const [results] = await sequelize.query(`
         SELECT TABLE_NAME, CONSTRAINT_NAME
         FROM information_schema.TABLE_CONSTRAINTS
         WHERE CONSTRAINT_TYPE = 'UNIQUE'
@@ -350,7 +355,7 @@ async function dropAllUniqueKeys() {
     for (const row of results) {
         const { TABLE_NAME, CONSTRAINT_NAME } = row;
         console.log(`删除唯一索引: ${CONSTRAINT_NAME} 在表: ${TABLE_NAME}`);
-        await queryInterface.sequelize.query(`ALTER TABLE \`${TABLE_NAME}\` DROP INDEX \`${CONSTRAINT_NAME}\`;`);
+        await sequelize.query(`ALTER TABLE \`${TABLE_NAME}\` DROP INDEX \`${CONSTRAINT_NAME}\`;`);
     }
 }
 // 同步数据库
