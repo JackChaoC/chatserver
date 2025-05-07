@@ -10,10 +10,17 @@ const interceptor = function (req, res, next) {
         return next(); // 放行这些路由，不进行中间件处理
     }
     let token = req.headers.authorization
+    if (!token) {
+        return res.send({
+            "code": 20001, //未登录
+            "data": null,
+            "message": "访问成功，但是未登录"
+        })
+    }
+
     const arr = token.split(' ')
     if (arr.length > 1) token = arr[1]
     const verifyResult = verifyToken(token)
-
     console.log('verifyResult:', verifyResult);
     if (verifyResult.success) {
         req.userInfo = verifyResult.data
