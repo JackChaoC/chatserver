@@ -4,6 +4,7 @@ const Authorization = express.Router();
 const bcrypt = require('bcrypt');
 const { generateToken } = require('../utils/auth.js');
 const common = require('../utils/common');
+const { Users } = require('../sqlServices/sequelize')
 
 /**
  * 1.登录
@@ -17,7 +18,7 @@ Authorization.post('/login', async (req, res) => {
         const sqlResult = await exec('SELECT user_id,user_name,user_email,user_password FROM USERS WHERE user_email=?', [user_email])
         if (sqlResult.data.length > 0) {
 
-            const { user_id, user_name, user_email, user_password: storedPasswordHash } = sqlResult.data[0];
+            const { user_id, user_name, user_email, user_password: storedPasswordHash, user_role } = sqlResult.data[0];
             const isPasswordCorrect = await bcrypt.compare(user_password, storedPasswordHash)
 
             if (isPasswordCorrect) {
@@ -31,7 +32,7 @@ Authorization.post('/login', async (req, res) => {
                     message: '登录成功'
                 }
                 //auth
-                res.cookie('token', generateToken({ user_id, user_name, user_email }))
+                res.cookie('token', generateToken({ user_id, user_role, user_name, user_email }))
 
                 console.log('login result:', result);
 

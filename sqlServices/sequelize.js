@@ -69,6 +69,10 @@ const Relationship = sequelize.define('Relationship', {
     user2_id: {
         type: DataTypes.INTEGER,
     },
+    conversation_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
     createdAt: {
         type: DataTypes.BIGINT,
         defaultValue: () => Date.now() // 使用JS时间戳
@@ -312,6 +316,7 @@ ConversationMembers.belongsTo(Conversation, { foreignKey: 'conversation_id', onD
 Conversation.hasMany(ConversationMembers, { foreignKey: 'conversation_id' })
 Message.belongsTo(Users, { foreignKey: 'message_sender', onDelete: 'RESTRICT' })
 Message.belongsTo(Conversation, { foreignKey: 'conversation_id', onDelete: 'CASCADE' })
+Relationship.belongsTo(Conversation, { foreignKey: 'conversation_id', onDelete: 'CASCADE' })
 Notification.belongsTo(Users, { foreignKey: 'sender_id' })
 Users.hasMany(Notification, { foreignKey: 'sender_id' })
 Notification.belongsTo(Users, { foreignKey: 'receiver_id' })

@@ -81,20 +81,21 @@ async function replyNotification(req, res) {
             if (typeof operations.isAgree != 'boolean') return res.send(common.refuse('params type error'));
 
             if (operations.isAgree) {
+                const conv = await createConversation({
+                    conversation_type: 0,
+                    user_id_List: [sender_id, receiver_id]
+                }, transaction)
                 const [rela, flag] = await Relationship.findOrCreate({
                     raw: true,
                     where: {
                         user1_id: Math.min(sender_id, receiver_id),
-                        user2_id: Math.max(sender_id, receiver_id)
+                        user2_id: Math.max(sender_id, receiver_id),
+                        conversation_id: conv.conversation_id
                     },
                     defaults: {},
                     transaction
                 })
                 if (!flag) throw new Error('你们已经是好友了哦')
-                await createConversation({
-                    conversation_type: 0,
-                    user_id_List: [sender_id, receiver_id]
-                }, transaction)
             }
             await Notification.destroy({
                 where: {
@@ -155,12 +156,13 @@ async function createConversation({ conversation_type, user_id_List, conversatio
             }
         })
         await ConversationMembers.bulkCreate(batchMembers, { transaction })
+        return conv
     }
 
 }
 
 async function getFriends(user_id) {
-    return sequelize.query(`
+    const friends = await sequelize.query(`
         SELECT user_id,user_role,user_name,user_email,user_avatar
         FROM Users
         WHERE user_id IN(
@@ -172,6 +174,32 @@ async function getFriends(user_id) {
         replacements: [user_id, user_id],
         type: sequelize.QueryTypes.SELECT
     })
+    return friends.map(item => ({ ...item, isFriend: true }))
+}
+async function getFriendsAndMe(user_id) {
+    let friends = await sequelize.query(`
+        SELECT user_id,user_role,user_name,user_email,user_avatar
+        FROM Users
+        WHERE user_id IN(
+            SELECT user2_id FROM Relationships WHERE user1_id=?
+            UNION
+            SELECT user1_id FROM Relationships WHERE user2_id=?
+        )
+    `, {
+        replacements: [user_id, user_id, user_id],
+        type: sequelize.QueryTypes.SELECT
+    })
+    friends = friends.map(item => ({ ...item, isFriend: true }))
+    const me = await Users.findOne({
+        raw: true,
+        attributes: ['user_id', 'user_role', 'user_name', 'user_email', 'user_avatar'],
+        where: {
+            user_id
+        }
+    })
+    if (!me) throw new Error('no such user')
+    friends.unshift({ ...me, isFriend: false })
+    return friends
 }
 
 async function getFriendIds(user_id) {
@@ -210,12 +238,46 @@ async function getMessage({ conversation_id }) {
     })
 }
 
+async function towIsFriend({ user1_id, user2_id }) {
+    const result = await Relationship.findOne({
+        raw: true,
+        where: {
+            user1_id: Math.min(user1_id, user2_id),
+            user2_id: Math.max(user1_id, user2_id)
+        }
+    })
+    if (result) return true
+    return false
+}
+
+async function getRelationship({ user1_id, user2_id }, t) {
+    return await Relationship.findOne({
+        raw: true,
+        where: {
+            user1_id: Math.min(user1_id, user2_id),
+            user2_id: Math.max(user1_id, user2_id)
+        },
+        transaction: t
+    })
+}
+
+async function getUserById({ user_id }) {
+    return await Users.findOne({
+        where: {
+            user_id
+        }
+    })
+}
 
 module.exports = {
     sendNotification,
     replyNotification,
     getFriends,
+    getFriendsAndMe,
     getFriendIds,
     checkIfUserInConversation,
-    getMessage
+    getMessage,
+    towIsFriend,
+    getRelationship,
+    getUserById
 }

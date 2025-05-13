@@ -14,13 +14,21 @@ Chat.post('/searchUser', async (req, res) => {//{keyword: 'xxx'}
     try {
         const { keyword } = req.body
         if (!keyword) res.send(common.refuse('搜索内容不能为空'))
-        const result = await Users.findAll({
+        let result = await Users.findAll({
             attributes: ['user_id', 'user_name', 'user_email', 'user_avatar'],
             where: {
                 user_name: {
                     [Op.like]: `%${keyword}%`
                 }
             }
+        })
+        const friends = await chatService.getFriends(req.userInfo.user_id)
+        friends.forEach(item => {
+            result.forEach(r => {
+                if (r.user_id === item.user_id) {
+                    r.setDataValue('isFriend', true)
+                }
+            })
         })
         console.log(result);
         res.send(common.accept(result))
@@ -29,6 +37,7 @@ Chat.post('/searchUser', async (req, res) => {//{keyword: 'xxx'}
         res.send(common.refuse('搜索失败'))
     }
 })
+
 Chat.post('/getNotifications', async (req, res) => {
     try {
         const result = await Notification.findAll({
@@ -52,17 +61,16 @@ Chat.post('/sendNotification', async (req, res) => {//{receiver_id,notification_
 
 Chat.post('/replyNotification', async (req, res) => {//{notificationo_id,notification_type:number,operations:{isAgree:boolean}}
     const { notification_id } = req.body
-
     if (!notification_id) return res.send(common.refuse('lack of params'))
     chatService.replyNotification(req, res)
 
 
 })
 
-Chat.post('/getFriends', async (req, res) => {
+Chat.post('/getFriendsAndMe', async (req, res) => {
     const requester_id = req.userInfo.user_id
     try {
-        const result = await chatService.getFriends(requester_id)
+        const result = await chatService.getFriendsAndMe(requester_id)
         return res.send(common.accept(result))
     } catch (error) {
         console.log(error);
@@ -171,6 +179,55 @@ Chat.post('/messageRead', async (req, res) => {//{conversation_id}
         res.send(common.refuse())
     }
 
+})
+
+Chat.post('/deleteFriend', async (req, res) => {//{delete_id}
+    const { delete_id } = req.body
+    if (!delete_id) return res.send(common.refuse('lack of params'))
+    try {
+        await sequelize.transaction(async (t) => {
+            const isFriend = await chatService.towIsFriend({
+                user1_id: req.userInfo.user_id,
+                user2_id: delete_id
+            })
+            if (!isFriend) return res.send(common.refuse('非好友关系，删除失败'))
+            const relationship = await chatService.getRelationship({ user1_id: delete_id, user2_id: req.userInfo.user_id });
+            const { conversation_id, relationship_id } = relationship
+            //删除conversation,联级删除message、relationship、conversationMemebers
+            await Conversation.destroy({
+                where: {
+                    conversation_id
+                }
+            }, { transaction: t })
+        })
+        return res.send(common.accept('删除成功'))
+    } catch (error) {
+        return res.send(common.refuse())
+    }
+
+})
+
+Chat.post('/updateAvatar', async (req, res) => {//{avatar_url}
+    const { avatar_url } = req.body
+    const { user_id } = req.userInfo
+    if (!avatar_url) return res.send(common.refuse('lack of params'))
+    try {
+        let updated_user = {}
+        await sequelize.transaction(async (t) => {
+            await Users.update({
+                user_avatar: avatar_url
+            }, {
+                where: {
+                    user_id: user_id
+                }
+            }, { transaction: t })
+            updated_user = await Users.findByPk(user_id)
+        })
+        return res.send(common.accept(updated_user))
+    } catch (error) {
+        console.log(error);
+        return res.send(common.refuse())
+    }
 })
 
 module.exports = Chat;
